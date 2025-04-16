@@ -8,7 +8,7 @@
 
 import UIKit
 
-public final class ColorPicker: UIControl {
+public class ColorPicker: UIControl {
     
     private(set) lazy var colorSpace: HRColorSpace = { preconditionFailure() }()
 
@@ -26,20 +26,25 @@ public final class ColorPicker: UIControl {
     private lazy var hsvColor: HSVColor = { preconditionFailure() }()
 
     private let feedbackGenerator = UISelectionFeedbackGenerator()
-    
-    public override init(frame: CGRect) {
+    private var brightnessSliderHide = false
+
+    public init(frame: CGRect, sliderHide: Bool = false) {
         super.init(frame: frame)
+        self.brightnessSliderHide = sliderHide
         setup()
     }
     
-    public required init?(coder aDecoder: NSCoder) {
+    required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
         setup()
     }
     
     private func setup() {
         addSubview(colorMap)
-        addSubview(brightnessSlider)
+        if brightnessSliderHide == false {
+            addSubview(brightnessSlider)
+            brightnessSlider.delegate = self
+        }
         addSubview(brightnessCursor)
         addSubview(colorMapCursor)
 
@@ -50,8 +55,6 @@ public final class ColorPicker: UIControl {
         let colorMapTap = UITapGestureRecognizer(target: self, action: #selector(self.handleColorMapTap(tap:)))
         colorMapTap.delegate = self
         colorMap.addGestureRecognizer(colorMapTap)
-
-        brightnessSlider.delegate = self
 
         feedbackGenerator.prepare()
     }
@@ -69,17 +72,17 @@ public final class ColorPicker: UIControl {
         super.layoutSubviews()
 
         let margin: CGFloat = 12
-        let brightnessSliderWidth: CGFloat = 72
-        let colorMapSize = min(bounds.width - brightnessSliderWidth - margin * 3, bounds.height - 2 * margin)
+        let brightnessSliderWidth: CGFloat = brightnessSliderHide ? 0 : 72
+        let marginCount: CGFloat = brightnessSliderHide ? 2 : 3
+        let colorMapSize = bounds.width - brightnessSliderWidth - margin * marginCount
 
-        let colorMapX = (bounds.width - (colorMapSize + margin * 2 + brightnessSliderWidth)) / 2
+        colorMap.frame = CGRect(x: 0, y: (bounds.height - colorMapSize)/2, width: colorMapSize + margin * 2, height: colorMapSize)
 
-        colorMap.frame = CGRect(x: colorMapX, y: (bounds.height - colorMapSize)/2, width: colorMapSize + margin * 2, height: colorMapSize)
-        brightnessSlider.frame = CGRect(x: colorMap.frame.maxX, y: (bounds.height - colorMapSize)/2,
+        brightnessSlider.frame = CGRect(x: colorMapSize + margin * 2, y: (bounds.height - colorMapSize)/2,
                                         width: brightnessSliderWidth, height: colorMapSize)
 
         let brightnessCursorSize = CGSize(width: brightnessSliderWidth, height: 28)
-        brightnessCursor.frame = CGRect(x: colorMap.frame.maxX,
+        brightnessCursor.frame = CGRect(x: colorMapSize + margin * 2,
                                         y: (bounds.height - brightnessCursorSize.height)/2,
                                         width: brightnessCursorSize.width, height: brightnessCursorSize.height)
         mapColorToView(initialize: true)
@@ -90,14 +93,16 @@ public final class ColorPicker: UIControl {
         colorMap.set(brightness: hsvColor.brightness)
         colorMapCursor.center =  colorMap.convert(colorMap.position(for: hsvColor.hueAndSaturation), to: self)
         colorMapCursor.set(hsvColor: hsvColor)
-        brightnessSlider.set(hsColor: hsvColor.hueAndSaturation)
-        if initialize {
-            self.brightnessSlider.set(brightness: self.hsvColor.brightness)
+        if brightnessSliderHide == false {
+            brightnessSlider.set(hsColor: hsvColor.hueAndSaturation)
+            if initialize {
+                self.brightnessSlider.set(brightness: self.hsvColor.brightness)
+            }
         }
     }
     
     @objc
-    private func handleColorMapPan(pan: UIPanGestureRecognizer) {
+    func handleColorMapPan(pan: UIPanGestureRecognizer) {
         switch pan.state {
         case .began:
             colorMapCursor.startEditing()
@@ -114,7 +119,7 @@ public final class ColorPicker: UIControl {
     }
 
     @objc
-    private func handleColorMapTap(tap: UITapGestureRecognizer) {
+    func handleColorMapTap(tap: UITapGestureRecognizer) {
         let selectedColor = colorMap.color(at: tap.location(in: colorMap))
         hsvColor = selectedColor.with(brightness: hsvColor.brightness)
         mapColorToView()
@@ -123,7 +128,7 @@ public final class ColorPicker: UIControl {
     }
 
     private var prevFeedbackedHSV: HSVColor?
-    private func feedbackIfNeeds() {
+    fileprivate func feedbackIfNeeds() {
         if prevFeedbackedHSV != hsvColor {
             feedbackGenerator.selectionChanged()
             prevFeedbackedHSV = hsvColor
@@ -132,7 +137,7 @@ public final class ColorPicker: UIControl {
 
     // ↑似た構造ではあるのだが、本質的に異なるので分けた
     private var prevSentActionHSV: HSVColor?
-    private func sendActionIfNeeds() {
+    func sendActionIfNeeds() {
         if prevSentActionHSV != hsvColor {
             sendActions(for: .valueChanged)
             prevSentActionHSV = hsvColor
